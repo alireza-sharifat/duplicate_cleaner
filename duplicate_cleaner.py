@@ -15,15 +15,13 @@ class DuplicateFinderApp:
         self.style = ttk.Style()
         self.style.theme_use("clam")
 
-        # Control variables
         self.cancel_event = Event()
         self.is_scanning = False
-        self.duplicates = {}   # hash -> list of paths
+        self.duplicates = {}
         self.total_scanned = 0
         self.total_groups = 0
-        self.empty_file_hash = hashlib.sha256(b'').hexdigest()  # hash of empty files
+        self.empty_file_hash = hashlib.sha256(b'').hexdigest()
 
-        # --- Top frame: buttons ---
         top_frame = ttk.Frame(root, padding="10")
         top_frame.pack(fill=tk.X)
 
@@ -35,19 +33,15 @@ class DuplicateFinderApp:
         self.lbl_folder = ttk.Label(top_frame, text="", foreground="gray")
         self.lbl_folder.pack(side=tk.LEFT, padx=10)
 
-        # --- Progress bar ---
         self.progress = ttk.Progressbar(root, orient=tk.HORIZONTAL, length=100, mode='determinate')
         self.progress.pack(fill=tk.X, padx=10, pady=5)
 
-        # Status label
         self.lbl_status = ttk.Label(root, text="Ready", foreground="blue")
         self.lbl_status.pack(pady=2)
 
-        # --- Output area ---
         self.txt_output = scrolledtext.ScrolledText(root, wrap=tk.WORD, font=("Segoe UI", 10))
         self.txt_output.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 
-        # --- Bottom buttons for deletion ---
         bottom_frame = ttk.Frame(root, padding="5")
         bottom_frame.pack(fill=tk.X)
 
@@ -58,9 +52,6 @@ class DuplicateFinderApp:
         self.lbl_stats = ttk.Label(bottom_frame, text="")
         self.lbl_stats.pack(side=tk.LEFT, padx=10)
 
-    # ------------------------------------------------------------
-    #  Scan methods
-    # ------------------------------------------------------------
     def scan_folder(self):
         folder = filedialog.askdirectory(title="Select Folder to Scan")
         if not folder:
@@ -72,18 +63,18 @@ class DuplicateFinderApp:
                                     "This will scan ALL fixed drives (C:\, D:\, etc.).\nIt may take a long time.\nContinue?"):
             return
         drives = []
-        if os.name == 'nt':  # Windows
+        if os.name == 'nt':
             for letter in string.ascii_uppercase:
                 drive = f"{letter}:\\"
                 if os.path.exists(drive) and os.path.isdir(drive):
                     try:
                         import ctypes
                         drive_type = ctypes.windll.kernel32.GetDriveTypeW(drive)
-                        if drive_type == 3:  # DRIVE_FIXED
+                        if drive_type == 3:
                             drives.append(drive)
                     except:
                         drives.append(drive)
-        else:  # Linux/Mac
+        else:
             drives = ['/']
         if not drives:
             messagebox.showerror("Error", "No fixed drives found!")
@@ -107,7 +98,6 @@ class DuplicateFinderApp:
 
     def scan_thread(self, paths, system_scan):
         try:
-            # First pass: count files
             total_files = 0
             self.root.after(0, lambda: self.lbl_status.config(text="Counting files..."))
             for root_path in paths:
@@ -135,13 +125,11 @@ class DuplicateFinderApp:
                         if self.cancel_event.is_set():
                             return
                         file_path = os.path.join(dirpath, fname)
-                        # Process ALL files (including empty)
                         try:
                             file_size = os.path.getsize(file_path)
                         except OSError:
                             scanned += 1
                             continue
-                        # Compute hash (empty files get same hash)
                         file_hash = self.compute_hash(file_path)
                         if file_hash:
                             hash_map[file_hash].append(file_path)
@@ -151,7 +139,6 @@ class DuplicateFinderApp:
                             self.root.after(0, lambda val=scanned: self.lbl_status.config(
                                 text=f"Scanning... {val}/{total_files} files"))
 
-            # Filter groups with more than one file
             duplicates = {h: paths for h, paths in hash_map.items() if len(paths) > 1}
             self.root.after(0, self.finish_scan, duplicates)
 
@@ -185,7 +172,6 @@ class DuplicateFinderApp:
         self.lbl_status.config(text="Scan complete", foreground="green")
         self.btn_delete.config(state=tk.NORMAL if total_groups > 0 else tk.DISABLED)
 
-        # Build output
         output = ""
         if not duplicates:
             output = "✅ No duplicate files found.\n"
@@ -234,15 +220,11 @@ class DuplicateFinderApp:
             self.lbl_status.config(text="Cancelling...", foreground="red")
             self.btn_cancel.config(state=tk.DISABLED)
 
-    # ------------------------------------------------------------
-    #  Delete duplicates (empty files: delete all; others: keep one)
-    # ------------------------------------------------------------
     def delete_duplicates(self):
         if not self.duplicates:
             messagebox.showinfo("Info", "No duplicates to delete.")
             return
 
-        # Separate empty and non-empty groups
         empty_groups = {h: paths for h, paths in self.duplicates.items() if h == self.empty_file_hash}
         non_empty_groups = {h: paths for h, paths in self.duplicates.items() if h != self.empty_file_hash}
 
@@ -263,7 +245,6 @@ class DuplicateFinderApp:
         deleted = 0
         errors = []
 
-        # Delete all empty files
         for hash_val, paths in empty_groups.items():
             for path in paths:
                 try:
@@ -272,7 +253,6 @@ class DuplicateFinderApp:
                 except Exception as e:
                     errors.append(f"Could not delete {path}: {e}")
 
-        # For non-empty groups: keep first, delete rest
         for hash_val, paths in non_empty_groups.items():
             keep = paths[0]
             for path in paths[1:]:
@@ -289,9 +269,6 @@ class DuplicateFinderApp:
         self.lbl_stats.config(text=f"Deleted {deleted} files")
         self.txt_output.insert(tk.END, f"\n🗑️ Deleted {deleted} duplicate files (empty files all removed).\n")
 
-    # ------------------------------------------------------------
-    #  Helper
-    # ------------------------------------------------------------
     def format_size(self, size_bytes):
         for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
             if size_bytes < 1024.0:
@@ -299,7 +276,6 @@ class DuplicateFinderApp:
             size_bytes /= 1024.0
         return f"{size_bytes:.2f} PB"
 
-# ------------------------------------------------------------
 if __name__ == "__main__":
     root = tk.Tk()
     app = DuplicateFinderApp(root)
