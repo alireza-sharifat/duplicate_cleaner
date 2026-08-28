@@ -19,12 +19,6 @@ No more manual searching, no more guessing – just pure, efficient file managem
 
 ---
 
-## 📸 Screenshots
-
-*(You can add your own screenshots here – e.g., main window, scan results – to help users visualize the tool.)*
-
----
-
 ## 📦 Requirements
 
 - Windows 10 / 11, Linux, or macOS (tested on all major OSes)
